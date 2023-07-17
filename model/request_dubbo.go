@@ -14,16 +14,15 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Apipost-Team/dubbo-go/constant"
+
 	"dubbo.apache.org/dubbo-go/v3/common"
 	dubboConfig "dubbo.apache.org/dubbo-go/v3/config"
 	"dubbo.apache.org/dubbo-go/v3/config/generic"
-	"github.com/Apipost-Team/dubbo-go/model/constant"
 	"github.com/Runner-Go-Team/RunnerGo-engine-open/log"
-	"github.com/Runner-Go-Team/RunnerGo-engine-open/middlewares"
 	"github.com/Runner-Go-Team/RunnerGo-engine-open/tools"
 	hessian "github.com/apache/dubbo-go-hessian2"
 	uuid "github.com/satori/go.uuid"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type DubboDetail struct {
@@ -37,13 +36,13 @@ type DubboDetail struct {
 	ApiName       string `json:"api_name"`
 	FunctionName  string `json:"function_name"`
 
-	DubboParam     []DubboParam    `json:"dubbo_param"`
-	DubboAssert    []DubboAssert   `json:"dubbo_assert"`
-	DubboRegex     []DubboRegex    `json:"dubbo_regex"`
-	DubboConfig    DubboConfig     `json:"dubbo_config"`
-	Configuration  *Configuration  `json:"configuration"`   // 场景设置
-	GlobalVariable *GlobalVariable `json:"global_variable"` // 全局变量
-	DubboVariable  *GlobalVariable `json:"dubbo_variable"`
+	DubboParam  []DubboParam  `json:"dubbo_param"`
+	DubboAssert []DubboAssert `json:"dubbo_assert"`
+	DubboRegex  []DubboRegex  `json:"dubbo_regex"`
+	DubboConfig DubboConfig   `json:"dubbo_config"`
+	// Configuration  *Configuration  `json:"configuration"`   // 场景设置
+	// GlobalVariable *GlobalVariable `json:"global_variable"` // 全局变量
+	//DubboVariable *GlobalVariable `json:"dubbo_variable"`
 }
 
 type DubboConfig struct {
@@ -79,7 +78,7 @@ type DubboParam struct {
 
 var RpcServerMap = new(sync.Map)
 
-func (d DubboDetail) Send(debug string, debugMsg map[string]interface{}, mongoCollection *mongo.Collection, globalVariable *sync.Map) {
+func (d DubboDetail) Send(debug string, debugMsg map[string]interface{}, globalVariable *sync.Map) {
 	parameterTypes, parameterValues := []string{}, []hessian.Object{}
 	var err error
 	var rpcServer common.RPCService
@@ -227,7 +226,6 @@ func (d DubboDetail) Send(debug string, debugMsg map[string]interface{}, mongoCo
 	}
 	debugMsg["assert"] = assertionMsgList
 	debugMsg["request_type"] = d.DubboProtocol
-	Insert(mongoCollection, debugMsg, middlewares.LocalIp)
 }
 
 func (d DubboDetail) init(soleKey string) (rpcServer common.RPCService, err error) {
