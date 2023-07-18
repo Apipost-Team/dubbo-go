@@ -2,7 +2,6 @@ package request
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -16,7 +15,6 @@ import (
 	hessian "github.com/apache/dubbo-go-hessian2"
 	"github.com/apache/dubbo-go/common"
 	uuid "github.com/satori/go.uuid"
-	//"github.com/Runner-Go-Team/RunnerGo-engine-open/tools"
 )
 
 var RpcServerMap = new(sync.Map)
@@ -61,7 +59,7 @@ type DubboRequest struct {
 	DubboConfig DubboConfig  `json:"dubbo_config"`
 }
 
-func (d *DubboRequest) Send() (string, error) {
+func (d *DubboRequest) Send() (any, error) {
 	parameterTypes, parameterValues := []string{}, []hessian.Object{}
 	var err error
 	var rpcServer common.RPCService
@@ -142,7 +140,7 @@ func (d *DubboRequest) Send() (string, error) {
 	fmt.Println(parameterTypes, parameterValues)
 
 	var resp interface{}
-	var response []byte
+	//var response []byte
 
 	resp, err = rpcServer.(*generic.GenericService).Invoke(
 		context.TODO(),
@@ -160,18 +158,11 @@ func (d *DubboRequest) Send() (string, error) {
 	}
 
 	resp2, ok := resp.(map[interface{}]interface{})
-	if ok {
-		resp3 := convertMap(resp2)
-		response, err = json.Marshal(resp3)
-	} else {
-		response, err = json.Marshal(resp)
+	if !ok {
+		return resp, nil
 	}
 
-	if err != nil {
-		return "end3", err
-	}
-
-	return string(response), nil
+	return convertMap(resp2), nil
 }
 
 func (d *DubboRequest) init(soleKey string) (rpcServer common.RPCService, err error) {
@@ -198,6 +189,7 @@ func (d *DubboRequest) init(soleKey string) (rpcServer common.RPCService, err er
 		Serialization:  "hessian2",
 	}
 	fmt.Println("refConf: ", refConf)
+
 	// 构造 Root 配置，引入注册中心模块
 	rootConfig := dubboConfig.NewRootConfigBuilder().AddRegistry(zk, registryConfig).Build()
 	if err = dubboConfig.Load(dubboConfig.WithRootConfig(rootConfig)); err != nil {
@@ -216,23 +208,14 @@ func (d *DubboRequest) init(soleKey string) (rpcServer common.RPCService, err er
 		return
 	}
 
-	if s, ok := RpcServerMap.Load(soleKey); !ok {
-		myuuid, _ := uuid.NewV4()
-		fmt.Println("uuuuuid      ", myuuid.String())
-		refConf.GenericLoad(myuuid.String())
-		//rpcServer = refConf.GetRPCService()
-
-		rpcServer2 := refConf.GetRPCService()
-		RpcServerMap.Store(soleKey, rpcServer2) //存储
-		rpcServer, ok = rpcServer2.(common.RPCService)
-		if !ok {
-			err = fmt.Errorf("rpcServer is not common.RPCService2")
-		}
-	} else {
-		rpcServer, ok = s.(common.RPCService)
-		if !ok {
-			err = fmt.Errorf("rpcServer is not common.RPCService2")
-		}
+	myuuid, _ := uuid.NewV4()
+	fmt.Println("uuuuuid      ", myuuid.String())
+	refConf.GenericLoad(myuuid.String())
+	rpcServer2 := refConf.GetRPCService()
+	RpcServerMap.Store(soleKey, rpcServer2) //存储
+	rpcServer, ok := rpcServer2.(common.RPCService)
+	if !ok {
+		err = fmt.Errorf("rpcServer is not common.RPCService2")
 	}
 
 	fmt.Println("rpcServer: ", rpcServer)

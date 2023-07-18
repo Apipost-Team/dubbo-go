@@ -7,7 +7,7 @@ import (
 	"github.com/Apipost-Team/dubbo-go/request"
 )
 
-func main() {
+func main2() {
 	var dubboStruct request.DubboRequest
 
 	jsonStr := `{
