@@ -19,8 +19,11 @@ import (
 	"dubbo.apache.org/dubbo-go/v3/common"
 	dubboConfig "dubbo.apache.org/dubbo-go/v3/config"
 	"dubbo.apache.org/dubbo-go/v3/config/generic"
+	_ "dubbo.apache.org/dubbo-go/v3/imports"
+	_ "dubbo.apache.org/dubbo-go/v3/metadata/service/local"
 	"github.com/Runner-Go-Team/RunnerGo-engine-open/log"
-	"github.com/Runner-Go-Team/RunnerGo-engine-open/tools"
+
+	//"github.com/Runner-Go-Team/RunnerGo-engine-open/tools"
 	hessian "github.com/apache/dubbo-go-hessian2"
 	uuid "github.com/satori/go.uuid"
 )
@@ -29,7 +32,6 @@ type DubboDetail struct {
 	TargetId string    `json:"target_id"`
 	Uuid     uuid.UUID `json:"uuid"`
 	Name     string    `json:"name"`
-	TeamId   string    `json:"team_id"`
 	Debug    string    `json:"debug"`
 
 	DubboProtocol string `json:"dubbo_protocol"`
@@ -78,7 +80,20 @@ type DubboParam struct {
 
 var RpcServerMap = new(sync.Map)
 
-func (d DubboDetail) Send(debug string, debugMsg map[string]interface{}, globalVariable *sync.Map) {
+func convertMap(m map[interface{}]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range m {
+		switch v := v.(type) {
+		case map[interface{}]interface{}:
+			result[fmt.Sprint(k)] = convertMap(v)
+		default:
+			result[fmt.Sprint(k)] = v
+		}
+	}
+	return result
+}
+
+func (d DubboDetail) Send(debugMsg map[string]interface{}, globalVariable *sync.Map) {
 	parameterTypes, parameterValues := []string{}, []hessian.Object{}
 	var err error
 	var rpcServer common.RPCService
@@ -87,6 +102,7 @@ func (d DubboDetail) Send(debug string, debugMsg map[string]interface{}, globalV
 	d.ApiName = strings.TrimSpace(d.ApiName)
 	d.DubboConfig.Version = strings.TrimSpace(d.DubboConfig.Version)
 	soleKey := fmt.Sprintf("%s://%s/%s", d.DubboProtocol, d.DubboConfig.RegistrationCenterAddress, d.ApiName)
+	fmt.Println(soleKey)
 	if s, ok := RpcServerMap.Load(soleKey); !ok {
 		rpcServer, err = d.init(soleKey)
 	} else {
@@ -147,15 +163,16 @@ func (d DubboDetail) Send(debug string, debugMsg map[string]interface{}, globalV
 		parameterValues = append(parameterValues, val)
 
 	}
-	log.Logger.Debug("parametertypes:          ", parameterTypes)
-	log.Logger.Debug("parameterValues:          ", parameterValues)
+	fmt.Println(parameterTypes, parameterValues)
+	//log.Logger.Debug("parametertypes:          ", parameterTypes)
+	//log.Logger.Debug("parameterValues:          ", parameterValues)
 
 	var resp interface{}
 	var response []byte
-	requestType, _ := json.Marshal(parameterTypes)
-	debugMsg["request_parameter_type"] = string(requestType)
-	requestBody, _ := json.Marshal(parameterValues)
-	debugMsg["request_body"] = string(requestBody)
+	//requestType, _ := json.Marshal(parameterTypes)
+	//debugMsg["request_parameter_type"] = string(requestType)
+	//requestBody, _ := json.Marshal(parameterValues)
+	//debugMsg["request_body"] = string(requestBody)
 	if err != nil {
 		debugMsg["status"] = constant.Failed
 		debugMsg["response_body"] = err.Error()
@@ -171,7 +188,17 @@ func (d DubboDetail) Send(debug string, debugMsg map[string]interface{}, globalV
 			debugMsg["response_body"] = err.Error()
 		}
 		if resp != nil {
-			response, err = json.Marshal(resp)
+			fmt.Println(resp)
+			resp2, ok := resp.(map[interface{}]interface{})
+			if ok {
+				resp3 := convertMap(resp2)
+				response, err = json.Marshal(resp3)
+			} else {
+				response, err = json.Marshal(resp)
+			}
+			fmt.Println(string(response))
+			//resp2 := convertMap(resp)
+			//response, err = json.Marshal(resp)
 			if err != nil {
 				log.Logger.Debug("err:     ", err.Error())
 			}
@@ -182,22 +209,22 @@ func (d DubboDetail) Send(debug string, debugMsg map[string]interface{}, globalV
 		}
 
 	}
-	var regex []map[string]interface{}
-	if d.DubboRegex != nil {
-		for _, regular := range d.DubboRegex {
-			if regular.IsChecked != constant.Open {
-				continue
-			}
-			reg := make(map[string]interface{})
-			value := regular.Extract(string(response), globalVariable)
-			if value == nil {
-				continue
-			}
-			reg[regular.Var] = value
-			regex = append(regex, reg)
-		}
-	}
-	debugMsg["regex"] = regex
+	//var regex []map[string]interface{}
+	// if d.DubboRegex != nil {
+	// 	for _, regular := range d.DubboRegex {
+	// 		if regular.IsChecked != constant.Open {
+	// 			continue
+	// 		}
+	// 		reg := make(map[string]interface{})
+	// 		value := regular.Extract(string(response), globalVariable)
+	// 		if value == nil {
+	// 			continue
+	// 		}
+	// 		reg[regular.Var] = value
+	// 		regex = append(regex, reg)
+	// 	}
+	// }
+	// debugMsg["regex"] = regex
 
 	var assertionMsgList []AssertionMsg
 	// 断言验证
@@ -229,7 +256,7 @@ func (d DubboDetail) Send(debug string, debugMsg map[string]interface{}, globalV
 }
 
 func (d DubboDetail) init(soleKey string) (rpcServer common.RPCService, err error) {
-	defer tools.DeferPanic("初始化dubbo配置失败")
+	//defer tools.DeferPanic("初始化dubbo配置失败")
 	registryConfig := &dubboConfig.RegistryConfig{
 		Protocol: d.DubboConfig.RegistrationCenterName,
 		Address:  d.DubboConfig.RegistrationCenterAddress,
@@ -253,11 +280,16 @@ func (d DubboDetail) init(soleKey string) (rpcServer common.RPCService, err erro
 		Serialization:  "hessian2",
 	}
 
+	fmt.Println("refConf: ", refConf)
+
 	// 构造 Root 配置，引入注册中心模块
 	rootConfig := dubboConfig.NewRootConfigBuilder().AddRegistry(zk, registryConfig).Build()
 	if err = dubboConfig.Load(dubboConfig.WithRootConfig(rootConfig)); err != nil {
+		fmt.Println(err)
 		return
 	}
+
+	fmt.Println(rootConfig)
 
 	//if err = rootConfig.Init(); err != nil {
 	//	return
@@ -269,7 +301,9 @@ func (d DubboDetail) init(soleKey string) (rpcServer common.RPCService, err erro
 	}
 
 	if s, ok := RpcServerMap.Load(soleKey); !ok {
-		refConf.GenericLoad(uuid.NewV4().String())
+		myuuid, _ := uuid.NewV4()
+		fmt.Println("uuuuuid      ", myuuid.String())
+		refConf.GenericLoad(myuuid.String())
 		//rpcServer = refConf.GetRPCService()
 
 		rpcServer = refConf.GetRPCService()
@@ -277,56 +311,58 @@ func (d DubboDetail) init(soleKey string) (rpcServer common.RPCService, err erro
 	} else {
 		rpcServer = s
 	}
+
+	fmt.Println("rpcServer: ", rpcServer)
 	return
 }
 
 // Extract 提取response 中的值
-func (re DubboRegex) Extract(resp string, globalVar *sync.Map) (value interface{}) {
-	re.Var = strings.TrimSpace(re.Var)
-	name := tools.VariablesMatch(re.Var)
-	if name == "" {
-		return
-	}
-	re.Express = strings.TrimSpace(re.Express)
-	keys := tools.FindAllDestStr(re.Express, "{{(.*?)}}")
-	if keys != nil {
-		for _, key := range keys {
-			if len(key) < 2 {
-				continue
-			}
-			realVar := tools.ParsFunc(key[1])
-			if realVar != key[1] {
-				re.Express = strings.Replace(re.Express, key[0], realVar, -1)
-				continue
-			}
-			if v, ok := globalVar.Load(key[1]); ok {
-				if v == nil {
-					continue
-				}
-				re.Express = strings.Replace(re.Express, key[0], v.(string), -1)
-			}
-		}
-	}
-	switch re.Type {
-	case constant.RegExtract:
-		if re.Express == "" {
-			value = ""
-			globalVar.Store(name, value)
-			return
-		}
-		value = tools.FindAllDestStr(resp, re.Express)
-		if value == nil && len(value.([][]string)) < 1 {
-			value = ""
-		} else {
-			value = value.([][]string)[0][1]
-		}
-		globalVar.Store(name, value)
-	case constant.JsonExtract:
-		value = tools.JsonPath(resp, re.Express)
-		globalVar.Store(name, value)
-	}
-	return
-}
+// func (re DubboRegex) Extract(resp string, globalVar *sync.Map) (value interface{}) {
+// 	re.Var = strings.TrimSpace(re.Var)
+// 	name := tools.VariablesMatch(re.Var)
+// 	if name == "" {
+// 		return
+// 	}
+// 	re.Express = strings.TrimSpace(re.Express)
+// 	keys := tools.FindAllDestStr(re.Express, "{{(.*?)}}")
+// 	if keys != nil {
+// 		for _, key := range keys {
+// 			if len(key) < 2 {
+// 				continue
+// 			}
+// 			realVar := tools.ParsFunc(key[1])
+// 			if realVar != key[1] {
+// 				re.Express = strings.Replace(re.Express, key[0], realVar, -1)
+// 				continue
+// 			}
+// 			if v, ok := globalVar.Load(key[1]); ok {
+// 				if v == nil {
+// 					continue
+// 				}
+// 				re.Express = strings.Replace(re.Express, key[0], v.(string), -1)
+// 			}
+// 		}
+// 	}
+// 	switch re.Type {
+// 	case constant.RegExtract:
+// 		if re.Express == "" {
+// 			value = ""
+// 			globalVar.Store(name, value)
+// 			return
+// 		}
+// 		value = tools.FindAllDestStr(resp, re.Express)
+// 		if value == nil && len(value.([][]string)) < 1 {
+// 			value = ""
+// 		} else {
+// 			value = value.([][]string)[0][1]
+// 		}
+// 		globalVar.Store(name, value)
+// 	case constant.JsonExtract:
+// 		value = tools.JsonPath(resp, re.Express)
+// 		globalVar.Store(name, value)
+// 	}
+// 	return
+// }
 
 // VerifyAssertionText 验证断言 文本断言
 func (assertionText *DubboAssert) VerifyAssertionText(resp string) (code int64, ok bool, msg string) {
