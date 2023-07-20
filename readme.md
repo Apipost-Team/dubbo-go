@@ -14,9 +14,10 @@
     "dubbo_param": [
         {
             "is_checked": 1,
-            "param_type": "java.lang.Long",
-            "var": "",
-            "val": "2222222"
+            "field_type": "java.lang.Long",
+            "key": "",
+            "value": "2222222",
+            "children":[]
         }
     ],
     "dubbo_config": {

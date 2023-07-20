@@ -46,6 +46,14 @@ type DubboParam struct {
 	Val       string `json:"val"`
 }
 
+type DubboParam2 struct {
+	IsChecked int32         `json:"is_checked"`
+	ParamType string        `json:"field_type"`
+	Var       string        `json:"key"`
+	Val       string        `json:"value"`
+	Children  []DubboParam2 `json:"children"`
+}
+
 type DubboRequest struct {
 	TargetId string `json:"target_id"`
 	Name     string `json:"name"`
@@ -55,8 +63,8 @@ type DubboRequest struct {
 	ApiName       string `json:"api_name"`
 	FunctionName  string `json:"function_name"`
 
-	DubboParam  []DubboParam `json:"dubbo_param"`
-	DubboConfig DubboConfig  `json:"dubbo_config"`
+	DubboParam  []DubboParam2 `json:"dubbo_param"`
+	DubboConfig DubboConfig   `json:"dubbo_config"`
 }
 
 func (d *DubboRequest) Send() (any, error) {
@@ -126,7 +134,8 @@ func (d *DubboRequest) Send() (any, error) {
 		case constant.JavaMap:
 		case constant.JavaList:
 		default:
-			val = parame.Val
+			fmt.Println(parame.Children)
+			val = parame.Children
 		}
 		parameterTypes = append(parameterTypes, parame.ParamType)
 		parameterValues = append(parameterValues, val)
