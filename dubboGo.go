@@ -68,19 +68,19 @@ func main() {
 
 				err := json.Unmarshal([]byte(body), &dubboStruct)
 				if err != nil {
-					msg := `{"code":501, "message":"` + err.Error() + `", "data":{}}`
+					msg := `{"code":501, "msg":` + errorJson(err) + `, "data":{}}`
 					sendChan <- msg
 					continue
 				}
 
 				if dubboStruct.ApiName == "" {
-					msg := `{"code":502, "message":"api_name is empty", "data":{"target_id":"` + dubboStruct.TargetId + `"}}`
+					msg := `{"code":502, "msg":"api_name is empty", "data":{"target_id":"` + dubboStruct.TargetId + `"}}`
 					sendChan <- msg
 					continue
 				}
 				resp, err := dubboStruct.Send()
 				if err != nil {
-					msg := `{"code":503, "message":"` + err.Error() + `", "data":{"target_id":"` + dubboStruct.TargetId + `"}}`
+					msg := `{"code":503, "msg":` + errorJson(err) + `, "data":{"target_id":"` + dubboStruct.TargetId + `"}}`
 					sendChan <- msg
 					continue
 				}
@@ -91,12 +91,12 @@ func main() {
 				}{TargetId: dubboStruct.TargetId, Resp: resp})
 
 				if err != nil {
-					msg := `{"code":504, "message":"` + err.Error() + `", "data":{"target_id":"` + dubboStruct.TargetId + `"}}`
+					msg := `{"code":504, "msg":` + errorJson(err) + `, "data":{"target_id":"` + dubboStruct.TargetId + `"}}`
 					sendChan <- msg
 					continue
 				}
 
-				msg := `{"code":1000, "msg":"success", "data":` + string(response) + `}`
+				msg := `{"code":10000, "msg":"success", "data":` + string(response) + `}`
 				sendChan <- msg
 			}
 		}(sendChan, ws)
@@ -142,5 +142,23 @@ func myHttpRespone(w http.ResponseWriter, r any) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"code":1000, "msg":"success", "data":` + string(response) + `}`))
+	w.Write([]byte(`{"code":10000, "msg":"success", "data":` + string(response) + `}`))
+}
+
+func errorJson(err error) string {
+	if err == nil {
+		return "None"
+	}
+
+	msg := err.Error()
+	if msg == "" {
+		return "None"
+	}
+
+	jsonStr, err1 := json.Marshal(msg)
+	if err1 != nil {
+		return msg
+	}
+
+	return string(jsonStr)
 }
