@@ -73,7 +73,7 @@ func main() {
 					}
 				}()
 				for {
-					time.Sleep(time.Duration(1) * time.Second)
+					time.Sleep(time.Duration(30) * time.Second)
 					sendChan <- "PING"
 				}
 			}(sendChan) //定时ping
