@@ -33,17 +33,71 @@ func convertMap(m map[interface{}]interface{}) map[string]interface{} {
 	return result
 }
 
+func convertObject(m DubboParam2) map[string]interface{} {
+	result := make(map[string]interface{})
+	for _, v := range m.Children {
+		if v.IsChecked != constant.Open {
+			continue //跳过
+		}
+		if len(v.Children) > 0 {
+			result[fmt.Sprint(v.Var)] = convertObject(v)
+			continue
+		}
+		var val interface{}
+		var err error
+		switch m.ParamType {
+		case constant.JavaInteger:
+			val, err = strconv.Atoi(m.Val)
+			if err != nil {
+				continue
+			}
+		case constant.JavaString:
+			val = m.Val
+		case constant.JavaBoolean:
+			switch m.Val {
+			case "true":
+				val = true
+			case "false":
+				val = false
+			default:
+				val = m.Val
+			}
+		case constant.JavaByte:
+		case constant.JavaCharacter:
+		case constant.JavaDouble:
+			val, err = strconv.ParseFloat(m.Val, 64)
+			if err != nil {
+				val = m.Val
+				continue
+			}
+		case constant.JavaFloat:
+			val, err = strconv.ParseFloat(m.Val, 64)
+			if err != nil {
+				val = m.Val
+				continue
+			}
+			val = float32(val.(float64))
+		case constant.JavaLong:
+			val, err = strconv.ParseInt(m.Val, 10, 64)
+			if err != nil {
+				val = m.Val
+				continue
+			}
+		case constant.JavaMap:
+		case constant.JavaList:
+		default:
+			val = m.Val
+		}
+		result[fmt.Sprint(v.Var)] = val
+	}
+	result["class"] = m.ParamType
+	return result
+}
+
 type DubboConfig struct {
 	RegistrationCenterName    string `json:"registration_center_name"`
 	RegistrationCenterAddress string `json:"registration_center_address"`
 	Version                   string `json:"version"`
-}
-
-type DubboParam struct {
-	IsChecked int32  `json:"is_checked"`
-	ParamType string `json:"param_type"`
-	Var       string `json:"var"`
-	Val       string `json:"val"`
 }
 
 type DubboParam2 struct {
@@ -88,7 +142,7 @@ func (d *DubboRequest) Send() (any, error) {
 
 	for _, parame := range d.DubboParam {
 		if parame.IsChecked != constant.Open {
-			break
+			continue
 		}
 		var val interface{}
 		switch parame.ParamType {
@@ -134,7 +188,11 @@ func (d *DubboRequest) Send() (any, error) {
 		case constant.JavaMap:
 		case constant.JavaList:
 		default:
-			fmt.Println(parame.Children)
+			if len(parame.Children) > 0 {
+				val = convertObject(parame)
+			} else {
+				val = parame.Val
+			}
 			val = parame.Children
 		}
 		parameterTypes = append(parameterTypes, parame.ParamType)

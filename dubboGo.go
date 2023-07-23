@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/Apipost-Team/dubbo-go/request"
 	"golang.org/x/net/websocket"
@@ -56,6 +57,27 @@ func main() {
 		defer ws.Close()
 		var sendChan = make(chan string)
 		go func(sendChan chan<- string, ws *websocket.Conn) {
+			defer close(sendChan)
+			defer func() {
+				if err := recover(); err != nil {
+					fmt.Println("read websocket panic recover")
+					fmt.Println(err)
+				}
+			}()
+
+			go func(sendChan chan<- string) {
+				defer func() {
+					if err := recover(); err != nil {
+						fmt.Println("ping error")
+						fmt.Println(err)
+					}
+				}()
+				for {
+					time.Sleep(time.Duration(1) * time.Second)
+					sendChan <- "PING"
+				}
+			}(sendChan) //定时ping
+
 			for {
 				var body string
 				if err := websocket.Message.Receive(ws, &body); err != nil {
@@ -78,26 +100,7 @@ func main() {
 					sendChan <- msg
 					continue
 				}
-				resp, err := dubboStruct.Send()
-				if err != nil {
-					msg := `{"code":503, "msg":` + errorJson(err) + `, "data":{"target_id":"` + dubboStruct.TargetId + `"}}`
-					sendChan <- msg
-					continue
-				}
-
-				response, err := json.Marshal(struct {
-					TargetId string `json:"target_id"`
-					Resp     any    `json:"resp"`
-				}{TargetId: dubboStruct.TargetId, Resp: resp})
-
-				if err != nil {
-					msg := `{"code":504, "msg":` + errorJson(err) + `, "data":{"target_id":"` + dubboStruct.TargetId + `"}}`
-					sendChan <- msg
-					continue
-				}
-
-				msg := `{"code":10000, "msg":"success", "data":` + string(response) + `}`
-				sendChan <- msg
+				go sendDubbo(dubboStruct, sendChan) //发送dubbo请求
 			}
 		}(sendChan, ws)
 
@@ -137,12 +140,46 @@ func myHttpRespone(w http.ResponseWriter, r any) {
 	response, err := json.Marshal(r)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"code":1003, "msg":"` + err.Error() + `"}`))
+		w.Write([]byte(`{"code":1003, "msg":"` + errorJson(err) + `"}`))
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"code":10000, "msg":"success", "data":` + string(response) + `}`))
+}
+
+// 发送dubbo请求
+func sendDubbo(dubboStruct request.DubboRequest, sendChan chan<- string) {
+	defer func() {
+		if err := recover(); err != nil {
+			err2, ok := err.(error)
+			if ok {
+				msg := `{"code":503, "msg":` + errorJson(err2) + `, "data":{"target_id":"` + dubboStruct.TargetId + `"}}`
+				sendChan <- msg
+			}
+			fmt.Println(err)
+		}
+	}()
+	resp, err := dubboStruct.Send()
+	if err != nil {
+		msg := `{"code":503, "msg":` + errorJson(err) + `, "data":{"target_id":"` + dubboStruct.TargetId + `"}}`
+		sendChan <- msg
+		return
+	}
+
+	response, err := json.Marshal(struct {
+		TargetId string `json:"target_id"`
+		Resp     any    `json:"resp"`
+	}{TargetId: dubboStruct.TargetId, Resp: resp})
+
+	if err != nil {
+		msg := `{"code":504, "msg":` + errorJson(err) + `, "data":{"target_id":"` + dubboStruct.TargetId + `"}}`
+		sendChan <- msg
+		return
+	}
+
+	msg := `{"code":10000, "msg":"success", "data":` + string(response) + `}`
+	sendChan <- msg
 }
 
 func errorJson(err error) string {
