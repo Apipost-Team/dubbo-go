@@ -2,6 +2,7 @@ package request
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -52,7 +53,7 @@ func convertObject(m DubboParam2) map[string]interface{} {
 				continue
 			}
 		case constant.JavaString:
-			val = m.Val
+			val = v.Val
 		case constant.JavaBoolean:
 			switch m.Val {
 			case "true":
@@ -60,37 +61,37 @@ func convertObject(m DubboParam2) map[string]interface{} {
 			case "false":
 				val = false
 			default:
-				val = m.Val
+				val = v.Val
 			}
 		case constant.JavaByte:
 		case constant.JavaCharacter:
 		case constant.JavaDouble:
 			val, err = strconv.ParseFloat(m.Val, 64)
 			if err != nil {
-				val = m.Val
+				val = v.Val
 				continue
 			}
 		case constant.JavaFloat:
 			val, err = strconv.ParseFloat(m.Val, 64)
 			if err != nil {
-				val = m.Val
+				val = v.Val
 				continue
 			}
 			val = float32(val.(float64))
 		case constant.JavaLong:
 			val, err = strconv.ParseInt(m.Val, 10, 64)
 			if err != nil {
-				val = m.Val
+				val = v.Val
 				continue
 			}
 		case constant.JavaMap:
 		case constant.JavaList:
 		default:
-			val = m.Val
+			val = v.Val
 		}
 		result[fmt.Sprint(v.Var)] = val
 	}
-	result["class"] = m.ParamType
+
 	return result
 }
 
@@ -190,10 +191,13 @@ func (d *DubboRequest) Send() (any, error) {
 		default:
 			if len(parame.Children) > 0 {
 				val = convertObject(parame)
+				fmt.Println("val: ", val)
 			} else {
-				val = parame.Val
+				err := json.Unmarshal([]byte(parame.Val), &val)
+				if err != nil {
+					return "param", fmt.Errorf("dubbo参数解析失败!")
+				}
 			}
-			val = parame.Children
 		}
 		parameterTypes = append(parameterTypes, parame.ParamType)
 		parameterValues = append(parameterValues, val)
